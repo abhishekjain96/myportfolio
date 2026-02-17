@@ -1,0 +1,11 @@
+{
+  "name": "portfolio-frontend",
+  "version": "1.0.0",
+  "description": "Portfolio Frontend",
+  "scripts": {
+    "start": "live-server --port=5500 --no-browser"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}
