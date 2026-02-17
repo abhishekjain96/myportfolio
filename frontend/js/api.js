@@ -1,6 +1,10 @@
-// API Base URL
-const API_URL = 'http://localhost:5000/api';
-const API_BASE = 'http://localhost:5000';
+// API Base URL - Production (Render) aur Development ke liye
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:5000' 
+    : 'https://myportfolio-zncr.onrender.com';
+
+const API_URL = API_BASE_URL + '/api';
+const API_BASE = API_BASE_URL;
 
 // Resolve image URL (handles relative paths from backend)
 export const getImageUrl = (url) => {
