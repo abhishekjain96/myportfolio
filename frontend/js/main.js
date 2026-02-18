@@ -1,4 +1,4 @@
-import * as api from './api.js';
+﻿import * as api from './api.js';
 const { getImageUrl, getImgPlaceholder } = api;
 
 // Email Configuration
@@ -336,9 +336,14 @@ function initTyped() {
             'PROBLEM SOLVER',
             'CODE ENTHUSIAST'
         ],
-        typeSpeed: 100,
-        backSpeed: 50,
-        loop: true
+        typeSpeed: 80,        // Thoda slow
+        backSpeed: 40,         // Slow backspace
+        startDelay: 1000,      // 1 sec pehle start
+        backDelay: 2000,       // 2 sec rukna before next
+        loop: true,
+        showCursor: true,
+        cursorChar: '|',
+        autoInsertCss: true
     });
 }
 
@@ -566,15 +571,37 @@ function addEventListeners() {
     document.getElementById('certificate-form').addEventListener('submit', saveCertificate);
     
     // Mobile menu
-    document.getElementById('mobile-menu-btn').addEventListener('click', () => {
-        document.getElementById('mobile-menu').classList.toggle('hidden');
-    });
+    // Mobile menu - FIXED VERSION
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+
+if (mobileMenuBtn && mobileMenu) {
+    // Remove any existing listeners by cloning and replacing
+    const newBtn = mobileMenuBtn.cloneNode(true);
+    mobileMenuBtn.parentNode.replaceChild(newBtn, mobileMenuBtn);
     
+    // Add fresh click listener
+    newBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        mobileMenu.classList.toggle('hidden');
+        console.log('Menu toggled'); // Debug
+    });
+
+    // Close menu when clicking links
     document.querySelectorAll('#mobile-menu a').forEach(link => {
-        link.addEventListener('click', () => {
-            document.getElementById('mobile-menu').classList.add('hidden');
+        link.addEventListener('click', function() {
+            mobileMenu.classList.add('hidden');
         });
     });
+
+    // Close when clicking outside (optional)
+    document.addEventListener('click', function(e) {
+        if (!mobileMenu.contains(e.target) && !newBtn.contains(e.target)) {
+            mobileMenu.classList.add('hidden');
+        }
+    });
+}
 
     initImageHandlers();
 }

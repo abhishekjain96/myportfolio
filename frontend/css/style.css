@@ -266,7 +266,23 @@ html {
     0%, 100% { opacity: 1; }
     50% { opacity: 0; }
 }
+/* Hero section fixed height */
+#home .text-center.md\:text-left {
+    min-height: 400px;  /* Fixed height prevent shifting */
+}
 
+/* Typed text container */
+#hero-title {
+    min-height: 120px;  /* Space for typed text */
+    margin-bottom: 1rem;
+}
+
+/* Fix for mobile */
+@media (max-width: 768px) {
+    #hero-title {
+        min-height: 100px;
+    }
+}
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .text-8xl {
