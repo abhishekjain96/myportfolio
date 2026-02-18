@@ -1,5 +1,5 @@
-﻿import * as api from './api.js';
-const { getImageUrl } = api;
+import * as api from './api.js';
+const { getImageUrl, getImgPlaceholder } = api;
 
 // Email Configuration
 const EMAIL_CONFIG = {
@@ -10,6 +10,16 @@ const EMAIL_CONFIG = {
 
 // Initialize EmailJS
 emailjs.init(EMAIL_CONFIG.publicKey);
+
+// Default profile - used when API fails (e.g. backend not running on localhost)
+const DEFAULT_PROFILE = {
+    name: 'ABHISHEK JAIN',
+    title: 'SOFTWARE DEVELOPER',
+    bio: 'Building innovative solutions with code 🚀',
+    about: 'Passionate about creating elegant solutions to complex problems.',
+    profilePhoto: '',
+    aboutPhoto: ''
+};
 
 // App State
 let appState = {
@@ -25,25 +35,18 @@ let elements = {};
 
 // Initialize on load
 window.addEventListener('load', async () => {
-    // Cache DOM elements
     cacheElements();
-    
-    // Load all data
     await loadAllData();
-    
-    // Initialize animations
-    setTimeout(() => {
-        document.getElementById('loading-screen').classList.add('hidden');
-        AOS.init({ duration: 1000, once: true, offset: 100 });
-        initTyped();
-    }, 1500);
-    
-    // Initialize particles
-    initParticles();
-    
-    // Add event listeners
-    addEventListeners();
+    finishInit();
 });
+
+function finishInit() {
+    document.getElementById('loading-screen').classList.add('hidden');
+    AOS.init({ duration: 1000, once: true, offset: 100 });
+    initTyped();
+    initParticles();
+    addEventListeners();
+}
 
 // Cache DOM elements
 function cacheElements() {
@@ -66,44 +69,49 @@ function cacheElements() {
 // Load all data from API
 async function loadAllData() {
     try {
-        const [
-            profile,
-            skills,
-            projects,
-            achievements,
-            certificates
-        ] = await Promise.all([
+        const [profile, skills, projects, achievements, certificates] = await Promise.all([
             api.profileAPI.get(),
             api.skillsAPI.getAll(),
             api.projectsAPI.getAll(),
             api.achievementsAPI.getAll(),
             api.certificatesAPI.getAll()
         ]);
-        
-        appState = { profile, skills, projects, achievements, certificates };
-        
-        renderProfile();
-        renderSkills();
-        renderProjects();
-        renderAchievements();
-        renderCertificates();
-        
+        appState = { profile, skills: skills || [], projects: projects || [], achievements: achievements || [], certificates: certificates || [] };
+        renderAll();
     } catch (error) {
-        console.error('Error loading data:', error);
-        showToast('❌ Failed to load data', 'error');
+        console.warn('API unavailable, using fallback data:', error.message);
+        appState = {
+            profile: { ...DEFAULT_PROFILE },
+            skills: [],
+            projects: [],
+            achievements: [],
+            certificates: []
+        };
+        renderAll();
+        showToast('⚠️ Using offline mode. Start backend for full data.', 'warning');
     }
+    finishInit();
+}
+
+function renderAll() {
+    if (appState.profile) renderProfile();
+    renderSkills();
+    renderProjects();
+    renderAchievements();
+    renderCertificates();
 }
 
 // Render Functions
 function renderProfile() {
+    if (!appState.profile) return;
     const { name, title, bio, about, profilePhoto, aboutPhoto } = appState.profile;
-    
-    elements.navName.textContent = name;
-    elements.heroName.textContent = name;
-    elements.heroBio.textContent = bio;
-    elements.aboutText.textContent = about;
-    elements.profilePhoto.src = getImageUrl(profilePhoto) || 'assets/images/abhishek.png';
-    elements.aboutPhoto.src = getImageUrl(aboutPhoto) || 'assets/images/abhishek.png';
+    elements.navName.textContent = name || 'Portfolio';
+    elements.heroName.textContent = name || 'Portfolio';
+    elements.heroBio.textContent = bio || '';
+    elements.aboutText.textContent = about || '';
+    const ph = getImgPlaceholder();
+    elements.profilePhoto.src = getImageUrl(profilePhoto) || ph;
+    elements.aboutPhoto.src = getImageUrl(aboutPhoto) || ph;
 }
 
 function renderSkills() {
@@ -160,16 +168,17 @@ function renderProjects() {
 }
 
 function renderAchievements() {
-    if (!appState.achievements.length) return;
+    const mainContainer = document.getElementById('main-achievement-container');
+    if (!mainContainer) return;
+    
+    if (!appState.achievements.length) {
+        mainContainer.innerHTML = '';
+        elements.achievementsContainer.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">No achievements yet.</p>';
+        return;
+    }
     
     // Main achievement (first one)
     const mainAchievement = appState.achievements[0];
-    if (mainAchievement && mainAchievement.image) {
-        elements.mainCertificateImage.src = getImageUrl(mainAchievement.image);
-    }
-    
-    // Other achievements
-    const otherAchievements = appState.achievements.slice(1);
     const colorClasses = {
         gold: 'from-yellow-400 to-orange-500',
         blue: 'from-blue-400 to-cyan-500',
@@ -177,25 +186,120 @@ function renderAchievements() {
         green: 'from-green-400 to-emerald-500',
         red: 'from-red-400 to-rose-500'
     };
+    const mainColor = colorClasses[mainAchievement.color] || 'from-yellow-400 to-orange-500';
+    const hasMainImage = mainAchievement && mainAchievement.image;
     
-    elements.achievementsContainer.innerHTML = otherAchievements
-        .map((ach, i) => `
-            <div class="glass rounded-2xl p-4 sm:p-6 hover-lift transition-all" data-aos="fade-up" data-aos-delay="${(i + 1) * 100}">
-                <div class="flex items-start gap-3 sm:gap-4 mb-4">
-                    <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br ${colorClasses[ach.color]} flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-${ach.icon} text-lg sm:text-2xl text-white"></i>
+    const badges = mainAchievement.badges || [mainAchievement.title || '1st Place', mainAchievement.year || '2025', '500+ Participants'];
+    const bullets = mainAchievement.bullets || (mainAchievement.details ? [mainAchievement.details] : []);
+    const stats = mainAchievement.stats || [
+        { value: '1st', label: 'Rank' },
+        { value: '500+', label: 'Students' },
+        { value: 'Python', label: 'Language' }
+    ];
+    const subTitle = mainAchievement.subTitle || mainAchievement.title || '';
+
+    mainContainer.innerHTML = `
+        <div class="glass rounded-3xl overflow-hidden hover-lift transition-all" data-aos="zoom-in" data-aos-delay="200">
+            <div class="grid lg:grid-cols-2 gap-0">
+                <div class="relative bg-gradient-to-br from-purple-900/50 to-pink-900/50 p-6 sm:p-8 ${hasMainImage ? 'cursor-pointer group' : ''}" ${hasMainImage ? 'onclick="window.app.showAchievementModal(0)"' : ''}>
+                    <div class="absolute top-4 right-4 z-10">
+                        <span class="px-4 py-2 bg-gradient-to-r ${mainColor} text-black font-black rounded-full text-xs sm:text-sm shadow-lg">
+                            <i class="fas fa-trophy mr-1"></i> WINNER
+                        </span>
                     </div>
-                    <div class="flex-1">
-                        <h3 class="text-base sm:text-xl font-bold mb-2">${ach.title}</h3>
-                        <p class="text-gray-400 text-xs sm:text-sm">${ach.description}</p>
+                    <div class="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gray-800">
+                        <img id="main-certificate-image" src="${hasMainImage ? getImageUrl(mainAchievement.image) : getImgPlaceholder()}" alt="${mainAchievement.title || 'Achievement'}" class="w-full h-full object-cover ${hasMainImage ? 'group-hover:scale-110' : ''} transition-transform duration-700">
+                        ${hasMainImage ? `
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div class="text-center">
+                                <i class="fas fa-search-plus text-5xl text-white mb-3"></i>
+                                <p class="text-white font-bold text-lg">Click to View Full</p>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
+                    ${hasMainImage ? `
+                    <div class="mt-4 flex justify-center">
+                        <span class="px-6 py-3 bg-white/10 rounded-full font-semibold text-sm flex items-center gap-2">
+                            <i class="fas fa-expand-alt"></i> View Full Size
+                        </span>
+                    </div>
+                    ` : ''}
                 </div>
-                <div class="flex justify-between items-center pt-3 sm:pt-4 border-t border-gray-700">
-                    <span class="text-cyan-400 font-semibold text-xs sm:text-sm">${ach.details.substring(0, 50)}...</span>
-                    <span class="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-xs">${ach.year}</span>
+                <div class="p-6 sm:p-10 flex flex-col justify-center">
+                    <div class="flex flex-wrap gap-3 mb-6">
+                        ${badges.slice(0, 3).map((b, i) => `
+                        <span class="px-4 py-2 ${i === 0 ? `bg-gradient-to-r ${mainColor} text-black` : i === 1 ? 'bg-purple-500/20 border border-purple-500 text-purple-300' : 'bg-blue-500/20 border border-blue-500 text-blue-300'} font-bold rounded-lg text-sm">${b}</span>
+                        `).join('')}
+                    </div>
+                    <h3 class="text-3xl sm:text-5xl font-black mb-4 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                        ${mainAchievement.title || 'Achievement'}
+                    </h3>
+                    <h4 class="text-xl sm:text-2xl font-bold text-white mb-6">
+                        🏆 ${subTitle}
+                    </h4>
+                    <p class="text-gray-300 text-base sm:text-lg leading-relaxed mb-6">
+                        ${mainAchievement.description || ''}
+                    </p>
+                    ${bullets.length ? `
+                    <div class="space-y-3 mb-6">
+                        ${bullets.map(b => `
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                                <i class="fas fa-check text-green-400"></i>
+                            </div>
+                            <p class="text-gray-300">${b}</p>
+                        </div>
+                        `).join('')}
+                    </div>
+                    ` : ''}
+                    <div class="grid grid-cols-3 gap-4 p-4 bg-black/30 rounded-xl border border-yellow-500/30">
+                        ${stats.slice(0, 3).map((s, i) => `
+                        <div class="text-center ${i === 1 ? 'border-l border-r border-gray-700' : ''}">
+                            <div class="text-2xl sm:text-3xl font-black ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-purple-400' : 'text-cyan-400'}">${s.value || ''}</div>
+                            <div class="text-xs sm:text-sm text-gray-400">${s.label || ''}</div>
+                        </div>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
-        `).join('');
+        </div>
+    `;
+    
+    // Re-cache main image element after render
+    elements.mainCertificateImage = document.getElementById('main-certificate-image');
+    
+    // Other achievements
+    const otherAchievements = appState.achievements.slice(1);
+    elements.achievementsContainer.innerHTML = otherAchievements
+        .map((ach, i) => {
+            const fullIndex = i + 1;
+            const hasImage = ach.image;
+            return `
+            <div class="glass rounded-2xl overflow-hidden hover-lift transition-all ${hasImage ? 'cursor-pointer' : ''}" data-aos="fade-up" data-aos-delay="${(i + 1) * 100}" ${hasImage ? `onclick="window.app.showAchievementModal(${fullIndex})"` : ''}>
+                ${hasImage ? `
+                <div class="aspect-video bg-gray-800 overflow-hidden">
+                    <img src="${getImageUrl(ach.image)}" alt="${ach.title}" class="w-full h-full object-cover">
+                </div>
+                ` : ''}
+                <div class="p-4 sm:p-6">
+                    <div class="flex items-start gap-3 sm:gap-4 mb-3">
+                        <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br ${colorClasses[ach.color] || 'from-yellow-400 to-orange-500'} flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-${ach.icon || 'trophy'} text-lg sm:text-2xl text-white"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-base sm:text-xl font-bold mb-2">${ach.title}</h3>
+                            <p class="text-gray-400 text-xs sm:text-sm line-clamp-2">${ach.description || ''}</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-3 border-t border-gray-700">
+                        <span class="text-cyan-400 font-semibold text-xs sm:text-sm truncate flex-1 mr-2">${(ach.subTitle || ach.description || '').substring(0, 40)}${(ach.subTitle || ach.description || '').length > 40 ? '...' : ''}</span>
+                        <span class="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-xs flex-shrink-0">${ach.year || ''}</span>
+                    </div>
+                    ${hasImage ? '<p class="text-xs text-gray-500 mt-2"><i class="fas fa-search-plus mr-1"></i> Click to view full</p>' : ''}
+                </div>
+            </div>
+        `}).join('');
 }
 
 function renderCertificates() {
@@ -316,7 +420,7 @@ function initParticles() {
 }
 
 // Image: read file as base64 data URL
-function readFileAsDataURL(file, maxMB = 2) {
+function readFileAsDataURL(file, maxMB = 5) {
     return new Promise((resolve, reject) => {
         if (file.size > maxMB * 1024 * 1024) {
             reject(new Error(`File too large. Max ${maxMB}MB.`));
@@ -423,6 +527,13 @@ function initImageHandlers() {
 
 // Add Event Listeners
 function addEventListeners() {
+    // Image load failure - use placeholder (prevents 404 errors in console)
+    document.addEventListener('error', (e) => {
+        if (e.target?.tagName === 'IMG' && !e.target.dataset.noFallback) {
+            e.target.src = getImgPlaceholder();
+        }
+    }, true);
+
     // Mouse trail
     document.addEventListener('mousemove', (e) => {
         const trail = document.createElement('div');
@@ -682,19 +793,21 @@ function loadAdminProjects() {
 function loadAdminAchievements() {
     const list = document.getElementById('admin-achievements-list');
     if (!list) return;
-    list.innerHTML = (appState.achievements || []).map((a, i) => `
-        <div class="glass rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex-1">
-                <p class="font-semibold text-yellow-400">${a.title}</p>
-                <p class="text-gray-400 text-sm mt-1">${(a.description || '').substring(0, 80)}...</p>
-                <p class="text-gray-500 text-xs mt-2">${a.year}</p>
+    const achievements = appState.achievements || [];
+    list.innerHTML = achievements.length ? achievements.map((a, i) => `
+        <div class="glass rounded-lg p-4 flex flex-col sm:flex-row gap-4">
+            ${a.image ? `<img src="${getImageUrl(a.image)}" alt="${a.title}" class="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover flex-shrink-0">` : '<div class="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"><i class="fas fa-trophy text-2xl text-gray-500"></i></div>'}
+            <div class="flex-1 min-w-0">
+                <p class="font-semibold text-yellow-400">${a.title || 'Untitled'}</p>
+                <p class="text-gray-400 text-sm mt-1">${(a.description || '').substring(0, 100)}${(a.description || '').length > 100 ? '...' : ''}</p>
+                <p class="text-gray-500 text-xs mt-2">${a.year || ''} • ${a.icon || 'trophy'} • ${a.color || 'gold'}</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-shrink-0">
                 <button onclick="window.app.editAchievement(${i})" class="px-3 py-2 bg-yellow-500 rounded-lg text-sm font-bold hover:bg-yellow-600 text-black">Edit</button>
                 <button onclick="window.app.deleteAchievement('${a._id}', ${i})" class="px-3 py-2 bg-red-500 rounded-lg text-sm font-bold hover:bg-red-600">Delete</button>
             </div>
         </div>
-    `).join('') || '<p class="text-gray-400">No achievements yet. Click Add Achievement to create one.</p>';
+    `).join('') : '<p class="text-gray-400">No achievements yet. Click Add Achievement to create one.</p>';
 }
 
 function loadAdminCertificates() {
@@ -721,9 +834,8 @@ function showToast(message, type = 'success') {
     toast.textContent = message;
     toast.className = 'toast';
     
-    if (type === 'error' || type === 'warning') {
-        toast.style.background = 'linear-gradient(90deg, #FF0033, #FF6B6B)';
-    }
+    if (type === 'error') toast.style.background = 'linear-gradient(90deg, #FF0033, #FF6B6B)';
+    if (type === 'warning') toast.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
     
     document.body.appendChild(toast);
     
@@ -753,15 +865,66 @@ function switchTab(tabName) {
         .classList.add('bg-cyan-500');
 }
 
-// Certificate Modal Functions
+// Certificate & Achievement View Modal
 let currentCertificateIndex = 0;
+let currentViewMode = 'certificate'; // 'certificate' or 'achievement'
 
 function showCertificateModal(index) {
     if (!appState.certificates[index]) return;
-    
+    currentViewMode = 'certificate';
     currentCertificateIndex = index;
     const cert = appState.certificates[index];
+    document.getElementById('modal-certificate-only').classList.remove('hidden');
+    document.getElementById('modal-achievement-full').classList.add('hidden');
     document.getElementById('modal-certificate-image').src = getImageUrl(cert.image);
+    document.getElementById('cert-back-to-details').classList.add('hidden');
+    document.getElementById('certificate-modal').classList.add('active');
+}
+
+function showAchievementFullSize() {
+    const ach = appState.achievements?.[currentCertificateIndex];
+    if (!ach) return;
+    currentViewMode = 'achievement-fullsize';
+    document.getElementById('modal-certificate-only').classList.remove('hidden');
+    document.getElementById('modal-achievement-full').classList.add('hidden');
+    document.getElementById('modal-certificate-image').src = ach.image ? getImageUrl(ach.image) : getImgPlaceholder();
+    document.getElementById('cert-back-to-details').classList.remove('hidden');
+}
+
+function backToAchievementDetails() {
+    currentViewMode = 'achievement';
+    document.getElementById('modal-certificate-only').classList.add('hidden');
+    document.getElementById('modal-achievement-full').classList.remove('hidden');
+    document.getElementById('cert-back-to-details').classList.add('hidden');
+}
+
+function showAchievementModal(index) {
+    const ach = appState.achievements?.[index];
+    if (!ach) return;
+    currentViewMode = 'achievement';
+    currentCertificateIndex = index;
+    document.getElementById('modal-certificate-only').classList.add('hidden');
+    document.getElementById('modal-achievement-full').classList.remove('hidden');
+    const imgEl = document.getElementById('modal-achievement-image');
+    imgEl.src = ach.image ? getImageUrl(ach.image) : getImgPlaceholder();
+    imgEl.alt = ach.title || 'Achievement';
+    const badges = ach.badges || [ach.title || '1st Place', ach.year || '2025', '500+ Participants'];
+    const bullets = ach.bullets || [];
+    const stats = ach.stats || [{ value: '1st', label: 'Rank' }, { value: '500+', label: 'Students' }, { value: 'Python', label: 'Language' }];
+    const colorClasses = { gold: 'from-yellow-400 to-orange-500', blue: 'from-blue-400 to-cyan-500', purple: 'from-purple-400 to-pink-500', green: 'from-green-400 to-emerald-500', red: 'from-red-400 to-rose-500' };
+    const mainColor = colorClasses[ach.color] || 'from-yellow-400 to-orange-500';
+    document.getElementById('modal-achievement-details').innerHTML = `
+        <div class="flex flex-wrap gap-3 mb-6">
+            ${badges.slice(0, 3).map((b, i) => `<span class="px-4 py-2 ${i === 0 ? `bg-gradient-to-r ${mainColor} text-black` : i === 1 ? 'bg-purple-500/20 border border-purple-500 text-purple-300' : 'bg-blue-500/20 border border-blue-500 text-blue-300'} font-bold rounded-lg text-sm">${b}</span>`).join('')}
+        </div>
+        <h3 class="text-2xl sm:text-4xl font-black mb-4 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">${ach.title || ''}</h3>
+        <h4 class="text-xl font-bold text-white mb-4">🏆 ${ach.subTitle || ''}</h4>
+        <p class="text-gray-300 mb-6">${ach.description || ''}</p>
+        ${bullets.length ? `<div class="space-y-2 mb-6">${bullets.map(b => `<div class="flex gap-2"><i class="fas fa-check text-green-400 mt-1"></i><p class="text-gray-300">${b}</p></div>`).join('')}</div>` : ''}
+        <div class="grid grid-cols-3 gap-4 p-4 bg-black/30 rounded-xl border border-yellow-500/30">
+            ${stats.slice(0, 3).map((s, i) => `<div class="text-center ${i === 1 ? 'border-l border-r border-gray-700' : ''}"><div class="text-xl font-black ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-purple-400' : 'text-cyan-400'}">${s.value || ''}</div><div class="text-xs text-gray-400">${s.label || ''}</div></div>`).join('')}
+        </div>
+    `;
     document.getElementById('certificate-modal').classList.add('active');
 }
 
@@ -770,10 +933,14 @@ function closeCertificateModal() {
 }
 
 function downloadCertificate() {
-    const img = document.getElementById('modal-certificate-image');
+    const isAchievement = currentViewMode === 'achievement' || currentViewMode === 'achievement-fullsize';
+    const img = (currentViewMode === 'achievement-fullsize' || currentViewMode === 'certificate')
+        ? document.getElementById('modal-certificate-image')
+        : document.getElementById('modal-achievement-image');
+    if (!img?.src) return;
     const link = document.createElement('a');
     link.href = img.src;
-    link.download = `certificate-${currentCertificateIndex + 1}.jpg`;
+    link.download = isAchievement ? `achievement-${currentCertificateIndex + 1}.jpg` : `certificate-${currentCertificateIndex + 1}.jpg`;
     link.click();
 }
 
@@ -930,23 +1097,34 @@ function editAchievement(index) {
     const fu = document.getElementById('ach-image-upload');
     if (fu) fu.value = '';
     document.getElementById('ach-title').value = a.title || '';
+    document.getElementById('ach-subTitle').value = a.subTitle || '';
     document.getElementById('ach-description').value = a.description || '';
-    document.getElementById('ach-details').value = a.details || '';
+    document.getElementById('ach-badges').value = (a.badges || []).join(', ');
+    document.getElementById('ach-bullets').value = (a.bullets || []).join('\n');
+    document.getElementById('ach-stats').value = (a.stats || []).map(s => `${s.value || ''}|${s.label || ''}`).join('\n');
+    document.getElementById('ach-year').value = a.year || '';
     document.getElementById('ach-icon').value = a.icon || 'trophy';
     document.getElementById('ach-color').value = a.color || 'gold';
-    document.getElementById('ach-year').value = a.year || '';
     document.getElementById('ach-image').value = a.image || '';
     document.getElementById('achievement-form-modal').classList.add('active');
 }
 async function saveAchievement(e) {
     e.preventDefault();
+    const statsRaw = document.getElementById('ach-stats').value.split('\n').map(s => s.trim()).filter(Boolean);
+    const stats = statsRaw.map(line => {
+        const [value, label] = line.split('|').map(x => x?.trim() || '');
+        return { value, label };
+    }).filter(s => s.value || s.label);
     const data = {
         title: document.getElementById('ach-title').value,
+        subTitle: document.getElementById('ach-subTitle').value || '',
         description: document.getElementById('ach-description').value,
-        details: document.getElementById('ach-details').value,
+        badges: document.getElementById('ach-badges').value.split(',').map(s => s.trim()).filter(Boolean),
+        bullets: document.getElementById('ach-bullets').value.split('\n').map(s => s.trim()).filter(Boolean),
+        stats,
         icon: document.getElementById('ach-icon').value || 'trophy',
         color: document.getElementById('ach-color').value,
-        year: document.getElementById('ach-year').value,
+        year: document.getElementById('ach-year').value || '',
         image: document.getElementById('ach-image').value || ''
     };
     try {
@@ -1063,6 +1241,9 @@ window.app = {
     editCertificate,
     deleteCertificate,
     showCertificateModal,
+    showAchievementModal,
+    showAchievementFullSize,
+    backToAchievementDetails,
     closeCertificateModal,
     downloadCertificate,
     showProjectDetails,

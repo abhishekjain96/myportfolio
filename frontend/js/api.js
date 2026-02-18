@@ -6,12 +6,17 @@ const API_BASE_URL = window.location.hostname === 'localhost' || window.location
 const API_URL = API_BASE_URL + '/api';
 const API_BASE = API_BASE_URL;
 
-// Resolve image URL (handles relative paths from backend)
+// Placeholder when image fails to load (no 404 errors)
+const IMG_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23374151" width="100" height="100"/%3E%3C/svg%3E';
+
+// Resolve image URL - images from admin (base64/URL) or backend path
 export const getImageUrl = (url) => {
     if (!url) return '';
     if (url.startsWith('data:') || url.startsWith('http')) return url;
     return API_BASE + (url.startsWith('/') ? url : '/' + url);
 };
+
+export const getImgPlaceholder = () => IMG_PLACEHOLDER;
 
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {

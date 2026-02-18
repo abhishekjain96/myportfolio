@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 const achievementSchema = new mongoose.Schema({
     title: {
@@ -11,7 +11,11 @@ const achievementSchema = new mongoose.Schema({
     },
     details: {
         type: String,
-        required: true
+        default: ''
+    },
+    subTitle: {
+        type: String,
+        default: ''
     },
     icon: {
         type: String,
@@ -23,11 +27,17 @@ const achievementSchema = new mongoose.Schema({
     },
     year: {
         type: String,
-        required: true
+        default: ''
     },
     image: {
         type: String
     },
+    badges: [{ type: String }],
+    bullets: [{ type: String }],
+    stats: [{
+        value: String,
+        label: String
+    }],
     order: {
         type: Number,
         default: 0
